@@ -1,0 +1,4 @@
+runtime: python311
+entrypoint: gunicorn felo.main:app --name felo-app --workers 4 --worker-class uvicorn.workers.UvicornWorker
+env_variables:
+  ENV: "prod"
