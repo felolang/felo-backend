@@ -12,7 +12,7 @@ from felo.db.models.user import User
 from felo.schemas.translations import TranslationRequest
 
 # from felo.services.google_translator import google_translsate
-from felo.utils.jwt_utils import get_current_user
+from felo.utils.jwt_utils import get_current_user, get_current_user_optionally
 
 
 async def get_lookup_selectinload(
@@ -34,13 +34,16 @@ async def get_lookup_selectinload(
 async def get_or_create_lookup(
     session: AsyncSession = Depends(get_session),
     translator_request: TranslationRequest = Body(...),
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_current_user_optionally),
 ) -> Lookup:
     logger.debug(f"get_or_create_lookup: {translator_request}")
     # lookup_db = await session.get(Lookup, translator_request.id)
     lookup_db = await get_lookup_selectinload(session, translator_request.id)
     if not lookup_db:
-        lookup_db = Lookup(**translator_request.model_dump(), user_id=user.id)
+        lookup_db = Lookup(
+            **translator_request.model_dump(),
+            user_id=user.id if user is not None else None,
+        )
         session.add(lookup_db)
         await session.commit()
         lookup_db = await get_lookup_selectinload(session, translator_request.id)

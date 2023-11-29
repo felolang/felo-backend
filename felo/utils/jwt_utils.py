@@ -84,9 +84,28 @@ async def get_current_user_token(
     return token
 
 
-async def get_current_user(
+async def get_current_user_optionally(
     session: AsyncSession = Depends(get_session), token: str = Depends(oauth2_scheme)
 ) -> Optional[User]:
+    logger.debug(f"token {token}")
+    try:
+        payload = decode_token(token)
+        email: str = payload.get("sub")
+        logger.debug(f"payload {payload}")
+        if email is None:
+            raise CREDENTIALS_EXCEPTION
+    except jwt.PyJWTError:
+        return None
+
+    if user_db := await get_user_by_email(session, email):
+        return user_db
+
+    return None
+
+
+async def get_current_user(
+    session: AsyncSession = Depends(get_session), token: str = Depends(oauth2_scheme)
+) -> User:
     if await is_token_blacklisted(session, TokenSchema(token=token)):
         raise CREDENTIALS_EXCEPTION
     logger.debug(f"token {token}")

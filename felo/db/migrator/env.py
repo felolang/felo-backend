@@ -16,7 +16,7 @@ from felo.db.models import *  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-load_dotenv()
+# load_dotenv()
 config = context.config
 section = config.config_ini_section
 config.set_section_option(section, "POSTGRES_DB", CONFIG.POSTGRES_DB)
@@ -24,6 +24,7 @@ config.set_section_option(section, "POSTGRES_HOST", CONFIG.POSTGRES_HOST)
 config.set_section_option(section, "POSTGRES_USER", CONFIG.POSTGRES_USER)
 config.set_section_option(section, "POSTGRES_PASSWORD", CONFIG.POSTGRES_PASSWORD)
 config.set_section_option(section, "POSTGRES_PORT", str(CONFIG.POSTGRES_PORT))
+
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -76,6 +77,10 @@ def run_migrations_online() -> None:
     if connectable is None:
         # only create Engine if we don't have a Connection
         # from the outside
+        print(
+            "config.config_ini_section",
+            config.get_section_option(config.config_ini_section, "sqlalchemy.url"),
+        )
         connectable = engine_from_config(
             config.get_section(config.config_ini_section),
             prefix="sqlalchemy.",

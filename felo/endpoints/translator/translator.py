@@ -5,13 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from felo.db.connection.session import get_session
 from felo.db.logic.lookup import get_or_create_lookup
 from felo.db.models.lookup import Lookup
-from felo.schemas.lookup import LangModelResponseSchema
+from felo.schemas.lookup import FastTranslationResponseSchema, LangModelResponseSchema
 from felo.schemas.translations import TranslationRequest
 from felo.schemas.user import UserSchema
 from felo.services.language_model_tranlation import (
+    FastTranslatorEnum,
     LanguageModelEnum,
     language_model_translation,
 )
+from felo.services.simple_translation import google_translate
 
 # from felo.services.google_translator import google_translsate
 from felo.utils.jwt_utils import get_current_user
@@ -35,6 +37,19 @@ async def translate_with_language_model(
     return res
 
 
+@api_router.post("/fast/{translator}", response_model=FastTranslationResponseSchema)
+async def translate_with_fast_translator(
+    translator: FastTranslatorEnum,
+    session: AsyncSession = Depends(get_session),
+    translator_request: TranslationRequest = Body(...),
+    lookup: Lookup = Depends(get_or_create_lookup),
+):
+    res = await google_translate(
+        session, translator_request, lookup, language_model_type
+    )
+    return res
+
+
 # @api_router.get("/deep/stream")
 # def deep_translate_stream():
 #     def event():
@@ -44,14 +59,3 @@ async def translate_with_language_model(
 #                 yield "data: {}\n\n".format(json.dumps(message))
 
 #     return StreamingResponse(event_stream(), media_type="text/event-stream")
-
-
-@api_router.get("/protected")
-def test2(current_email: str = Depends(get_current_user)):
-    return {"message": "protected api_app endpoint"}
-
-
-# @api_router.post("/google", response_model=LookupSchema)
-# async def fast_google_translate(translator_request: FastTranslationRequest = Body(...)):
-#     res = await google_translate(translator_request)
-#     return res

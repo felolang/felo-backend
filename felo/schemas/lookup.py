@@ -64,7 +64,7 @@ class LangModelResponseSchema(BaseModel):
     )
 
 
-class SimpleTranslationResponseSchema(BaseModel):
+class FastTranslationResponseSchema(BaseModel):
     source_language: Language
     target_language: Language
     # engine: TranslateEngineEnum

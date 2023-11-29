@@ -14,7 +14,7 @@ from felo.db.models.lookup import (
     PhrasesTypeEnum,
     TranslateEngineEnum,
 )
-from felo.schemas.lookup import LangModelResponseSchema, LookupSchema, PhrasesSchema
+from felo.schemas.lookup import LangModelResponseSchema
 from felo.schemas.translations import TranslationRequest
 from felo.utils.api_clients import openai_async_client
 
@@ -122,6 +122,10 @@ class LanguageModelTranslation:
 
 class LanguageModelEnum(str, Enum):
     OPENAI = "openai"
+
+
+class FastTranslatorEnum(str, Enum):
+    GOOGLE = "google"
 
 
 API_ADAPTERS: dict[LanguageModelEnum, LanguageModelApiAadapter] = {

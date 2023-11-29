@@ -2,6 +2,7 @@ import datetime
 
 from google.cloud import translate_v3
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from felo.config.utils import CONFIG
 from felo.schemas.lookup import LookupSchema
@@ -11,6 +12,7 @@ from felo.utils.api_clients import google_translator_client
 
 # Initialize Translation client
 async def google_translate(
+    session: AsyncSession,
     translator_request: FastTranslationRequest,
 ) -> LookupSchema:
     """Translating Text."""

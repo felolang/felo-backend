@@ -14,7 +14,7 @@ from .base import BaseTable
 class Lookup(BaseTable):
     __tablename__ = "lookup"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"))
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("user.id"))
 
     source_language: Mapped[Language]
     target_language: Mapped[Language]

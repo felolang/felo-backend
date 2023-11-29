@@ -19,6 +19,7 @@ migrate:  ##@Database Do all migrations in database
 revision:  ##@Database Create new revision file automatically with prefix (ex. 2022_01_01_14cs34f_message.py)
 	cd $(APPLICATION_NAME)/db && alembic revision --autogenerate
 
+
 format:
 	isort $(CODE) --profile black
 	black $(CODE)

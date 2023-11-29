@@ -11,6 +11,8 @@ CONFIG_PATH_PREFIX = (
     if environ.get("ALEMBIC_MIGRATIONS", None) is not None
     else "felo/config/"
 )
+dotenv_file = f"{CONFIG_PATH_PREFIX}{ENV}.env"
+logger.debug(f"dotenv_file {dotenv_file}")
 
 
 def access_secret_version(secret_id, version_id="latest"):
@@ -37,6 +39,7 @@ def load_env_string(env_string):
 
 if ENV == "prod":
     secret_envs = access_secret_version("SECRET_ENVS")
+    # logger.debug(f"secret_envs {secret_envs}")
 else:
     with open(f"{CONFIG_PATH_PREFIX}secret.env", "r", encoding="utf-8") as f:
         secret_envs = f.read()
@@ -45,6 +48,7 @@ load_env_string(secret_envs)
 
 
 class DefaultSettings(BaseSettings):
+    ENV: str = environ.get("ENV", "dev")
     GOOGLE_CLIENT_ID: str = environ.get("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: str = environ.get("GOOGLE_CLIENT_SECRET")
     PROJECT_ID: str
@@ -58,6 +62,9 @@ class DefaultSettings(BaseSettings):
         environ.get("REFRESH_TOKEN_EXPIRE_MINUTES", 60 * 24 * 30)  # 30 days
     )
 
+    SQL_CLOUD_INSTANCE_CONNECTION_NAME: str | None = environ.get(
+        "SQL_CLOUD_INSTANCE_CONNECTION_NAME", None
+    )
     POSTGRES_DB: str = "main"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_USER: str = "user"
@@ -92,7 +99,7 @@ class DefaultSettings(BaseSettings):
                 **self.database_settings,
             )
         )
-        logger.debug(f"Database uri: {db_uri}")
+        # logger.debug(f"Database uri: {db_uri}")
         return db_uri
 
     @property
@@ -111,5 +118,5 @@ class DefaultSettings(BaseSettings):
     #     return data
 
     class Config:
-        env_file = f"{CONFIG_PATH_PREFIX}{ENV}.env"
+        env_file = dotenv_file
         env_file_encoding = "utf-8"
