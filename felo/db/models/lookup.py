@@ -1,9 +1,9 @@
 # mypy: ignore-errors
 import uuid
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from felo.schemas.languages.iso639 import Language
@@ -43,10 +43,10 @@ class LookupAnswer(BaseTable):
     lookup_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("lookup.id"))
     lookup: Mapped[List["Lookup"]] = relationship(back_populates="lookup_answers")
     engine: Mapped[TranslateEngineEnum]
-    text_translation: Mapped[str]  # TODO: define max_length
+    extended_text: Mapped[Optional[str]]
+    text_translation: Mapped[Optional[list]] = mapped_column(type_=JSON)
     normalized_text: Mapped[Optional[str]]  # TODO: define max_length
-    normalized_text_translation: Mapped[Optional[str]]  # TODO: define max_length
-    pos: Mapped[Optional[str]]  # TODO: define max_length
+    normalized_text_translation: Mapped[Optional[list]] = mapped_column(type_=JSON)
     phrases: Mapped[List["LookupPhrases"]] = relationship(
         back_populates="lookup_answer", lazy="selectin"
     )
@@ -56,7 +56,8 @@ class PhrasesTypeEnum(Enum):
     IDIOM = "IDIOM"
     SLANG = "SLANG"
     PHRASAL_VERB = "PHRASAL_VERB"
-    NOTHING = "NOTHING"
+    ORDINARY_WORD = "ORDINARY_WORD"
+    TERM = "TERM"
 
 
 class LookupPhrases(BaseTable):

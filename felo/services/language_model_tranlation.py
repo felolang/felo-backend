@@ -1,7 +1,7 @@
 import datetime
 import json
 from enum import Enum
-from typing import Protocol
+from typing import Optional, Protocol
 
 from loguru import logger
 from openai.types.chat import ChatCompletion
@@ -14,15 +14,15 @@ from felo.db.models.lookup import (
     PhrasesTypeEnum,
     TranslateEngineEnum,
 )
+from felo.endpoints.translator.prompt import assistant1, prompt, user1
+from felo.schemas.cards import Card, CardTypesEnum, Explanation, NormalizedVersion
 from felo.schemas.lookup import LangModelResponseSchema
 from felo.schemas.translations import TranslationRequest
 from felo.utils.api_clients import openai_async_client
 
 
 class LanguageModelApiAadapter(Protocol):
-    async def translate(
-        self, prompt: str, translator_request: TranslationRequest
-    ) -> dict:
+    async def translate(self, translator_request: TranslationRequest) -> dict:
         ...
 
     def get_engine(self) -> str:
@@ -34,13 +34,13 @@ class OpenaiApiAdapter:
         self.client = openai_async_client
         self.engine = TranslateEngineEnum.GPT_3_5_TURBO_1106
 
-    async def translate(
-        self, prompt: str, translator_request: TranslationRequest
-    ) -> dict:
+    async def translate(self, translator_request: TranslationRequest) -> dict:
         response: ChatCompletion = await self.client.chat.completions.create(
             model="gpt-3.5-turbo-1106",
             messages=[
                 {"role": "system", "content": prompt},
+                {"role": "user", "content": user1},
+                {"role": "assistant", "content": assistant1},
                 {
                     "role": "user",
                     "content": translator_request.model_dump_json(
@@ -73,9 +73,81 @@ class LanguageModelTranslation:
         with open(prompt_path, "r", encoding="utf-8") as f:
             self.prompt = f.read()
 
+    def _get_normilized(
+        self, normilized_text: str, normilized_text_translation: list
+    ) -> Optional[NormalizedVersion]:
+        if normilized_text is None:
+            return None
+        return NormalizedVersion(
+            normalized_text=normilized_text,
+            normilized_text_translation=normilized_text_translation,
+        )
+
+    def _get_explanation(
+        self, explanation: str, explanation_translation: str
+    ) -> Optional[Explanation]:
+        if explanation is None:
+            return None
+        return Explanation(
+            explanation=explanation,
+            explanation_translation=explanation_translation,
+        )
+
+    def _lang_model_answer_to_cards(
+        self, sourse_text: str, lang_model_answer: LookupAnswer
+    ) -> list[Card]:
+        cards = []
+        main_card = Card(
+            id=lang_model_answer.id,
+            text=lang_model_answer.extended_text or sourse_text,
+            text_translation=lang_model_answer.text_translation,
+            normilized=self._get_normilized(
+                lang_model_answer.normalized_text,
+                lang_model_answer.normalized_text_translation,
+            ),
+            card_type=CardTypesEnum.SOURCE,
+        )
+        cards.append(main_card)
+
+        for phrase in lang_model_answer.phrases:
+            cards.append(
+                Card(
+                    id=phrase.id,
+                    text=phrase.phrase_text,
+                    text_translation=[
+                        {
+                            "translation": phrase.phrase_text_translation,
+                            "pos": None,
+                        }
+                    ],
+                    card_type=CardTypesEnum(phrase.type),
+                    normilized=self._get_normilized(
+                        phrase.phrase_normalized_text,
+                        [
+                            {
+                                "translation": phrase.phrase_normalized_text_translation,
+                                "pos": None,
+                            }
+                        ],
+                    ),
+                    explanation=self._get_explanation(
+                        phrase.explanation, phrase.explanation_translation
+                    ),
+                )
+            )
+        return cards
+
+    def _filter_cards(self, cards: list[Card]) -> list[Card]:
+        main_card = cards[0]
+        other_cards = cards[1:]
+        for card in other_cards:
+            if card.text == main_card.text:
+                return cards[1:]
+        return cards
+
     async def translate(
         self, translator_request: TranslationRequest, lookup: Lookup
-    ) -> LangModelResponseSchema:
+    ) -> list[Card]:
         logger.debug(f"lookup: {lookup.lookup_answers}")
 
         start = datetime.datetime.now()
@@ -84,7 +156,7 @@ class LanguageModelTranslation:
         logger.debug(f"Time 2: {datetime.datetime.now() - start}")
 
         logger.debug(f"Time 3: {datetime.datetime.now() - start}")
-        response = await self.api_adapter.translate(self.prompt, translator_request)
+        response = await self.api_adapter.translate(translator_request)
         logger.debug(f"GPT response: {response}")
         logger.debug(f"GPT response: {response['phrases']}")
         logger.debug(f"Time 4: {datetime.datetime.now() - start}")
@@ -92,14 +164,10 @@ class LanguageModelTranslation:
             text_translation=response["text_translation"],
             normalized_text=response["normalized_text"],
             normalized_text_translation=response["normalized_text_translation"],
-            pos=response["pos"],
             # phrases=response["phrases"],
-            phrases=[
-                LookupPhrases(**phrase)
-                for phrase in response["phrases"]
-                if phrase["type"] != PhrasesTypeEnum.NOTHING.value
-            ],
+            phrases=[LookupPhrases(**phrase) for phrase in response["phrases"]],
             engine=self.api_adapter.get_engine(),
+            extended_text=response["extended_text"],
         )
         lookup.lookup_answers.append(lookup_answer)
         self.session.add(lookup)
@@ -108,16 +176,9 @@ class LanguageModelTranslation:
         # logger.debug(f"phrases {phrases}")
         await self.session.commit()
 
-        return LangModelResponseSchema(
-            context_translation=lookup.context_translation,
-            source_language=lookup.source_language,
-            target_language=lookup.target_language,
-            text_translation=lookup_answer.text_translation,
-            normalized_text=lookup_answer.normalized_text,
-            normalized_text_translation=lookup_answer.normalized_text_translation,
-            pos=lookup_answer.pos,
-            phrases=phrases,
-        )
+        cards = self._lang_model_answer_to_cards(lookup.text, lookup_answer)
+        cards = self._filter_cards(cards)
+        return cards
 
 
 class LanguageModelEnum(str, Enum):
@@ -138,7 +199,7 @@ async def language_model_translation(
     translator_request: TranslationRequest,
     lookup: Lookup,
     language_model: LanguageModelEnum,
-) -> LangModelResponseSchema:
+) -> list[Card]:
     api_adapter = API_ADAPTERS[language_model]
     translator = LanguageModelTranslation(session, api_adapter)
     return await translator.translate(translator_request, lookup)

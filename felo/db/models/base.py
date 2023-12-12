@@ -1,3 +1,6 @@
+from typing import Any
+
+from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.sql import func

@@ -5,13 +5,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
+from starlette.middleware.sessions import SessionMiddleware
 
 from felo.config.default import DefaultSettings
 from felo.config.utils import CONFIG
 
 # from
 from felo.endpoints import list_of_routes
-from felo.endpoints.auth.google import auth_app
 
 
 def bind_routes(application: FastAPI, config: DefaultSettings) -> None:
@@ -32,6 +32,8 @@ def get_app(lifespan=None) -> FastAPI:
         openapi_url="/openapi",
         version="0.1.0",
     )
+    # application.mount("/auth", auth_app)
+
     bind_routes(application, CONFIG)
     application.state.settings = CONFIG
     return application
@@ -57,7 +59,8 @@ async def lifespan(app: FastAPI):
 
 
 app = get_app(lifespan=lifespan)
-app.mount("/auth", auth_app)
+SECRET_KEY = os.environ.get("SECRET_KEY") or None
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 
 ALLOWED_HOSTS = ["*"]
@@ -73,58 +76,58 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return HTMLResponse('<body><a href="/auth/login">Log In</a></body>')
+    return HTMLResponse('<body><a href="api/v1/auth/login">Log In</a></body>')
 
 
 @app.get("/main")
 async def token(request: Request):
     return HTMLResponse(
-        """
+        f"""
                 <script>
-                function send(){
+                function send(){{
                     var req = new XMLHttpRequest();
-                    req.onreadystatechange = function() {
-                        if (req.readyState === 4) {
+                    req.onreadystatechange = function() {{
+                        if (req.readyState === 4) {{
                             console.log(req.response);
-                            if (req.response["result"] === true) {
+                            if (req.response["result"] === true) {{
                                 window.localStorage.setItem('jwt', req.response["access_token"]);
-                            }
-                        }
-                    }
+                            }}
+                        }}
+                    }}
                     req.withCredentials = true;
                     req.responseType = 'json';
-                    req.open("post", "/auth/token?"+window.location.search.substr(1), true);
+                    req.open("post", "api/v1/auth/token?"+window.location.search.substr(1), true);
                     req.send("");
 
-                }
+                }}
                 </script>
                 <button onClick="send()">Get FastAPI JWT Token</button>
 
-                <button onClick='fetch("http://127.0.0.1:8000/api/v1/api/").then(
-                    (r)=>r.json()).then((msg)=>{console.log(msg)});'>
+                <button onClick='fetch("{CONFIG.FRONTEND_URL}/api/v1/api/").then(
+                    (r)=>r.json()).then((msg)=>{{console.log(msg)}});'>
                 Call Unprotected API
                 </button>
-                <button onClick='fetch("http://127.0.0.1:8000/api/v1/api/protected").then(
-                    (r)=>r.json()).then((msg)=>{console.log(msg)});'>
+                <button onClick='fetch("{CONFIG.FRONTEND_URL}/api/v1/api/protected").then(
+                    (r)=>r.json()).then((msg)=>{{console.log(msg)}});'>
                 Call Protected API without JWT
                 </button>
-                <button onClick='fetch("http://127.0.0.1:8000/api/v1/api/protected",{
-                    headers:{
+                <button onClick='fetch("{CONFIG.FRONTEND_URL}/api/v1/api/protected",{{
+                    headers:{{
                         "Authorization": "Bearer " + window.localStorage.getItem("jwt")
-                    },
-                }).then((r)=>r.json()).then((msg)=>{console.log(msg)});'>
+                    }},
+                }}).then((r)=>r.json()).then((msg)=>{{console.log(msg)}});'>
                 Call Protected API wit JWT
                 </button>
-                <button onClick='fetch("http://127.0.0.1:8000/auth/logout",{
-                    headers:{
+                <button onClick='fetch("{0}/api/v1/auth/logout",{{
+                    headers:{{
                         "Authorization": "Bearer " + window.localStorage.getItem("jwt")
-                    },
-                }).then((r)=>r.json()).then((msg)=>{
+                    }},
+                }}).then((r)=>r.json()).then((msg)=>{{
                     console.log(msg);
-                    if (msg["result"] === true) {
+                    if (msg["result"] === true) {{
                         window.localStorage.removeItem("jwt");
-                    }
-                    });'>
+                    }}
+                    }});'>
                 Logout
                 </button>
         """

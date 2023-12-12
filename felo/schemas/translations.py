@@ -9,8 +9,10 @@ from felo.schemas.languages.iso639 import Language
 
 class TranslationRequest(BaseModel):
     id: uuid.UUID = Field(alias="lookup_id")
-    text: str = Field(alias="input_text")
-    context: str
+    text: str = Field(
+        alias="input_text", max_length=CONFIG.LANGUAGE_MODEL_TEXT_MAX_LENGTH
+    )
+    context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
     source_language: Language
     target_language: Language
 

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from felo.db.connection.session import get_session
 from felo.db.logic.lookup import get_or_create_lookup
 from felo.db.models.lookup import Lookup
+from felo.schemas.cards import Card
 from felo.schemas.lookup import FastTranslationResponseSchema, LangModelResponseSchema
 from felo.schemas.translations import TranslationRequest
 from felo.schemas.user import UserSchema
@@ -24,7 +25,7 @@ api_router = APIRouter(
 )
 
 
-@api_router.post("/lm/{language_model_type}", response_model=LangModelResponseSchema)
+@api_router.post("/lm/{language_model_type}", response_model=list[Card])
 async def translate_with_language_model(
     language_model_type: LanguageModelEnum,
     session: AsyncSession = Depends(get_session),
@@ -44,10 +45,11 @@ async def translate_with_fast_translator(
     translator_request: TranslationRequest = Body(...),
     lookup: Lookup = Depends(get_or_create_lookup),
 ):
-    res = await google_translate(
-        session, translator_request, lookup, language_model_type
-    )
-    return res
+    pass
+    # res = await google_translate(
+    #     session, translator_request, lookup, language_model_type
+    # )
+    # return res
 
 
 # @api_router.get("/deep/stream")

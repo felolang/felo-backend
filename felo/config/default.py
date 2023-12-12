@@ -73,8 +73,12 @@ class DefaultSettings(BaseSettings):
     DB_CONNECT_RETRY: int = 20
     DB_POOL_SIZE: int = 15
 
-    DEEP_TRANSLATION_MAX_LENGTH: int = 100
+    LANGUAGE_MODEL_TEXT_MAX_LENGTH: int = 500
+    LANGUAGE_MODEL_CONTEXT_MAX_LENGTH: int = 1000
+
     FAST_TRANSLATION_MAX_LENGTH: int = 2000
+
+    FRONTEND_URL: str = "http://127.0.0.1:8000"
 
     @property
     def database_settings(self) -> dict:

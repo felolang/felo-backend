@@ -2,12 +2,11 @@ import os
 from datetime import datetime
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from fastapi import Depends, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.config import Config
-from starlette.middleware.sessions import SessionMiddleware
 
 from felo.config.utils import CONFIG
 from felo.db.connection.session import get_session
@@ -21,8 +20,10 @@ from felo.utils.jwt_utils import (
     get_current_user_token,
 )
 
-auth_app = FastAPI()
-
+api_router = APIRouter(
+    prefix="/auth",
+    tags=["Auth"],
+)
 # OAuth settings
 GOOGLE_CLIENT_ID = CONFIG.GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET = CONFIG.GOOGLE_CLIENT_SECRET
@@ -43,26 +44,19 @@ oauth.register(
 )
 
 # Set up the middleware to read the request session
-SECRET_KEY = os.environ.get("SECRET_KEY") or None
-auth_app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 
-@auth_app.get("/")
-def test():
-    return JSONResponse({"message": "auth_app"})
+FRONTEND_URL = f"{CONFIG.FRONTEND_URL}/main"
 
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL") or "http://127.0.0.1:8000/main"
-
-
-@auth_app.route("/login")
-async def login(request: Request):
+@api_router.get("/login")
+async def google_login(request: Request):
     redirect_uri = FRONTEND_URL
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
-@auth_app.post("/token")
-async def auth(
+@api_router.post("/token")
+async def get_tokens(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ):
@@ -86,7 +80,7 @@ async def auth(
     raise CREDENTIALS_EXCEPTION
 
 
-@auth_app.get("/logout")
+@api_router.get("/logout")
 async def logout(
     token: str = Depends(get_current_user_token),
     session: AsyncSession = Depends(get_session),
@@ -96,8 +90,8 @@ async def logout(
     raise CREDENTIALS_EXCEPTION
 
 
-@auth_app.post("/refresh")
-async def refresh(
+@api_router.post("/refresh")
+async def refres_tokens(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ):

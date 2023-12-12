@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,8 +85,12 @@ async def get_current_user_token(
 
 
 async def get_current_user_optionally(
-    session: AsyncSession = Depends(get_session), token: str = Depends(oauth2_scheme)
+    request: Request,
+    session: AsyncSession = Depends(get_session),
 ) -> Optional[User]:
+    token = oauth2_scheme(request)
+    if not token:
+        return None
     logger.debug(f"token {token}")
     try:
         payload = decode_token(token)

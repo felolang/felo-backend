@@ -15,7 +15,7 @@ from felo.schemas.translations import TranslationRequest
 from felo.utils.jwt_utils import get_current_user, get_current_user_optionally
 
 
-async def get_lookup_selectinload(
+async def get_lookup_by_id(
     session: AsyncSession, lookup_id: uuid.UUID
 ) -> Lookup | None:
     query = (
@@ -38,7 +38,7 @@ async def get_or_create_lookup(
 ) -> Lookup:
     logger.debug(f"get_or_create_lookup: {translator_request}")
     # lookup_db = await session.get(Lookup, translator_request.id)
-    lookup_db = await get_lookup_selectinload(session, translator_request.id)
+    lookup_db = await get_lookup_by_id(session, translator_request.id)
     if not lookup_db:
         lookup_db = Lookup(
             **translator_request.model_dump(),
@@ -46,7 +46,7 @@ async def get_or_create_lookup(
         )
         session.add(lookup_db)
         await session.commit()
-        lookup_db = await get_lookup_selectinload(session, translator_request.id)
+        lookup_db = await get_lookup_by_id(session, translator_request.id)
 
     logger.debug(f"get_or_create_lookup: {type(lookup_db)} {lookup_db.__dict__}")
     assert lookup_db is not None

@@ -1,0 +1,132 @@
+You are translator API. Below is pseudo code in Python. Please execute it, imitating unimplemented functions
+
+----
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel
+
+
+class Input(BaseModel):
+    source_language: str
+    target_language: str
+    text: str
+    context: str
+
+
+class ChunkTypes(str, Enum):
+    IDIOM = "IDIOM"
+    SLANG = "SLANG"
+    PHRASAL_VERB = "PHRASAL_VERB"
+    TERM = "TERM"
+    ABBREVIATION = "ABBREVIATION"
+    ORDINARY_WORD = "ORDINARY_WORD"
+    SENTENCE = "SENTENCE"
+
+class TranslationPiece(BaseModel):
+    translation: str
+    pos: str # part of speech
+
+
+class Chunk(BaseModel):
+    chunk: str
+    chunk_type: ChunkTypes
+    chunk_translation: list[TranslationPiece]
+    normilized_chunk: Optional[str]
+    normilized_chunk_translation: list[TranslationPiece]
+    explanation: Optional[str]
+    explanation_translation: Optional[str]
+
+def get_full_chunk(text: str, context: str) -> str:
+    """if input text is part of general phrase in context (one of the types ChunkTypes), extend it and return full phrase"""
+    ...
+
+def define_type_of_chunk(text: str) -> ChunkTypes:
+    ...
+
+def translate_chunk(text: str, source_language, target_language) -> list[TranslationPiece]:
+    """returns all possible translates from source source_language to target target_language. If translation is single word, define part of speech"""
+    ...
+
+def normilize_chunk(text: str) -> Optional[str]:
+    """return normilize_chunk it is one word"""
+    ...
+
+def chunk_explanation(text: str, chunk_type: ChunkTypes) -> Optional[str]:
+    """if chunk is ORDINARY_WORD or SENTENCE return None, else explains it in source_language"""
+    ...
+
+def chunk_explanation_translation(text: str, chunk_type: ChunkTypes) -> Optional[str]:
+    """if chunk is ORDINARY_WORD or SENTENCE return None, else explains it in target_language"""
+    ...
+
+
+def translate_single_word(input: Input) -> Chunk:
+    full_chunk = get_full_chunk(input.text, input.context)
+    type_of_chunk = define_type_of_chunk(full_chunk)
+    return Chunk(
+        chunk = full_chunk,
+        chunk_type = type_of_chunk,
+        chunk_translation = translate_chunk(full_chunk),
+        normilized_chunk = normilize_chunk(full_chunk),
+        normilized_chunk_translation = translate_chunk(normilize_chunk(full_chunk)),
+        explanation = chunk_explanation(full_chunk, type_of_chunk),
+        explanation_translation = chunk_explanation_translation(full_chunk, type_of_chunk),
+    )
+
+def def translate_multiple_word(input: Input) -> list[Chunk]:
+    """return list of chunks. 1st chunk it is tranlation of whole input.text. If some of ChunkType constructions consist in input.text, then append their to the result list"""
+
+def translate(input: Input) -> list[Chunk]:
+    result = []
+    if len(input.text.split(' ')) == 1:
+        result.append(translate_single_word(input))
+    else:
+        result.extend(translate_multiple_word(input))
+
+    return result
+
+translate(input)
+----
+return result of translate(input) in JSON format
+
+{"source_language": "EN", "target_language": "RU", "text": "it was a piece", "context": "it was a piece of cake for me"}
+
+user ====
+{"source_language": "EN", "target_language": "RU", "text": "they called", "context": "they called off the meeting"}
+assistant ====
+[
+    {
+        "chunk": "they called off",
+        "chunk_type": "SENTENCE",
+        "chunk_translation": [
+            {
+                "translation": "они отменили",
+                "pos": None
+            }
+        ],
+        "normilized_chunk": null,
+        "normilized_chunk_translation": [],
+        "explanation": None,
+        "explanation_translation": None,
+    },
+    {
+        "chunk": "called off",
+        "chunk_type": "PHRASAL_VERB",
+        "chunk_translation": [
+            {
+                "translation": "отменили",
+                "pos": None
+            }
+        ],
+        "normilized_chunk": "to call off",
+        "normilized_chunk_translation": [
+            {
+                "translation": "отменить",
+                "pos": None
+            }
+        ],
+        "explanation": "to cancel",
+        "explanation_translation":  Отменить,
+    }
+]

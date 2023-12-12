@@ -1,3 +1,4 @@
+prompt = """
 You are translator API. Your answer should be consistent and follow all rules. return answer in JSON format
 
 ```
@@ -17,10 +18,9 @@ Always return the result in JSON formats.
 Return list of Chunk:
 
 
-
-1. "text_translation": list[PossibleTranslation] - list of possible translations the "text" to "target_language" as close as possible to the "context". Only letters in the "target_language" are allowed.
-2. "phrases": List[Phrase] - a list of Phrases Model described below. Search for all types in the PhrasesTypeEnum. can be empty
-3. "pos": Optional[string] - if the "text" is a single word, define its part of speech in context. Else - null.
+1. "extended_text": Optional[string] - if the "text" in "context" is a part of idiom, phrasal verb, slang, term extend it to the whole phrase.
+2. "text_translation": list[PossibleTranslation] - list of possible translations the "text" to "target_language" as close as possible to the "context". Only letters in the "target_language" are allowed.
+3. "phrases": List[Phrase] - a list of Phrases Model described below. Search for all types in the PhrasesTypeEnum. can be empty
 4. "normalized_text": Optional[string] - if the "text" is a single word, define its normal form. Else - null.
 5. "normalized_text_translation": list[PossibleTranslation] - list of possible translations of the field "normalized_text" to "target_language."
 
@@ -46,18 +46,18 @@ Phrase Model Fields:
 6. "explanation": string - if the phrase is an idiom or slang, provide its explanation in the "source_language" Else - null.
 7. "explanation_translation": string - if the phrase is an idiom or slang, provide its explanation in the "target_language." Else - null.
 
-
-
 ```
+"""
 
-
+user1 = """
 {
   "selected_text": "decided",
-  "context": "After a very hard working day, John decided to quit his job, but the day after, his boss changed his work schedule, he was promoted, so he changed his mind.",
-  "source_language": "EN",
+r  "source_language": "EN",
   "target_language": "RU"
 }
+"""
 
+assistant1 = """
 {
   "extended_text": "decided",
   "text_translation": [
@@ -80,3 +80,4 @@ Phrase Model Fields:
 Если перевод исходного текста равен одной из фраз, в финальном результате вернуть только фразу.
 ??? подумать над сохранением одного слова
 
+"""
