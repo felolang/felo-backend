@@ -32,7 +32,7 @@ class CardTypesEnum(str, Enum):
 
 
 class Card(BaseModel):
-    id: uuid.UUID  # для сохранения в избранное
+    id: Optional[uuid.UUID] = None  # для сохранения в избранное
     text: str
     card_type: CardTypesEnum
     text_translation: list[PossibleTranslation]

@@ -7,7 +7,7 @@ from felo.db.logic.lookup import get_or_create_lookup
 from felo.db.models.lookup import Lookup
 from felo.schemas.cards import Card
 from felo.schemas.lookup import FastTranslationResponseSchema, LangModelResponseSchema
-from felo.schemas.translations import TranslationRequest
+from felo.schemas.translations import FastTranslationRequest, TranslationRequest
 from felo.schemas.user import UserSchema
 from felo.services.language_model_tranlation import (
     FastTranslatorEnum,
@@ -38,18 +38,16 @@ async def translate_with_language_model(
     return res
 
 
-@api_router.post("/fast/{translator}", response_model=FastTranslationResponseSchema)
+@api_router.post("/fast/{translator}", response_model=list[Card])
 async def translate_with_fast_translator(
     translator: FastTranslatorEnum,
     session: AsyncSession = Depends(get_session),
-    translator_request: TranslationRequest = Body(...),
-    lookup: Lookup = Depends(get_or_create_lookup),
+    translator_request: FastTranslationRequest = Body(...),
+    # lookup: Lookup = Depends(get_or_create_lookup),
 ):
-    pass
-    # res = await google_translate(
-    #     session, translator_request, lookup, language_model_type
-    # )
-    # return res
+    lookup = None
+    res = await google_translate(session, translator_request, lookup, translator)
+    return res
 
 
 # @api_router.get("/deep/stream")

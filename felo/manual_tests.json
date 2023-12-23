@@ -1,0 +1,44 @@
+[
+    {
+        "lookup_id": "{{$randomUUID}}",
+        "source_language": "EN",
+        "target_language": "RU",
+        "text": "decided",
+        "context": "After a very hard working day, John decided to quit his job, but the day after, his boss changed his work schedule, he was promoted, so he changed his mind.",
+        "text_start_position": 36
+    },
+    {
+        "lookup_id": "{{$randomUUID}}",
+        "text": "John",
+        "context": "John decided to quit his job",
+        "source_language": "EN",
+        "target_language": "RU",
+        "text_start_position": 0
+      },
+      {
+        "lookup_id": "{{$randomUUID}}",
+        "text": "quit",
+        "context": "John decided to quit his job",
+        "text_start_position": 16,
+        "source_language": "EN",
+        "target_language": "RU"
+      },
+      {
+        "lookup_id": "{{$randomUUID}}",
+        "text": "changed",
+        "context": "so he changed his mind.",
+        "source_language": "EN",
+        "target_language": "RU",
+        "text_start_position": 5
+
+      },
+      {
+        "lookup_id": "{{$randomUUID}}",
+
+        "text": "rambling",
+        "context": "All night he rambled around the city, rambling incoherent nonsense out loud. ",
+        "source_language": "EN",
+        "target_language": "RU",
+        "text_start_position": 38
+      }
+]

@@ -5,17 +5,23 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from felo.config.utils import CONFIG
+from felo.db.models.lookup import Lookup
+from felo.schemas.cards import Card, CardTypesEnum
 from felo.schemas.lookup import LookupSchema
 from felo.schemas.translations import FastTranslationRequest
-from felo.utils.api_clients import google_translator_client
+from felo.services.language_model_tranlation import FastTranslatorEnum
 
 
 # Initialize Translation client
 async def google_translate(
     session: AsyncSession,
     translator_request: FastTranslationRequest,
-) -> LookupSchema:
+    lookup: Lookup,
+    translator: FastTranslatorEnum,
+) -> list[Card]:
     """Translating Text."""
+    google_translator_client = translate_v3.TranslationServiceAsyncClient()
+
     start = datetime.datetime.now()
     logger.debug(f"Time 1: {datetime.datetime.now() - start}")
 
@@ -25,7 +31,7 @@ async def google_translate(
 
     request = translate_v3.TranslateTextRequest(
         parent=parent,
-        contents=[translator_request.selected_text],
+        contents=[translator_request.text],
         mime_type="text/plain",  # mime types: text/plain, text/html
         source_language_code=translator_request.source_language.value,
         target_language_code=translator_request.target_language.value,
@@ -37,8 +43,15 @@ async def google_translate(
 
     translation = response.translations[0]
     logger.debug(f"Time taken: {datetime.datetime.now() - start}")
-    return LookupSchema(
-        selected_text_translation=[translation.translated_text],
-        source_language=translator_request.source_language,
-        target_language=translator_request.target_language,
-    )
+
+    return [
+        Card(
+            text=translator_request.text,
+            card_type=CardTypesEnum.SOURCE,
+            text_translation=[
+                {"translation": translation.translated_text, "pos": None}
+            ],
+            normilized=None,
+            explanation=None,
+        )
+    ]

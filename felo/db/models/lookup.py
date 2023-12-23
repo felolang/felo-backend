@@ -25,6 +25,7 @@ class Lookup(BaseTable):
     lookup_answers: Mapped[List["LookupAnswer"]] = relationship(
         back_populates="lookup", lazy="selectin"
     )
+    text_start_position: Mapped[int]
 
 
 class TranslateEngineEnum(Enum):

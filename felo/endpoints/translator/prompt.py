@@ -10,7 +10,7 @@ Your input is a JSON object containing the following fields:
 2. "target_language": string - the language into which you need to translate in ISO 639-1 format.
 3. "text": string - the text you want to translate.
 4. "context": string - the context in which the "text" is located.
-
+5. "small_context": string - a smaller context (cropped) than in the "context" field. It is needed in order to accurately find a word in the context if it occurs more than once
 OUTPUT
 
 Always return the result in JSON formats.
@@ -18,7 +18,7 @@ Always return the result in JSON formats.
 Return list of Chunk:
 
 
-1. "extended_text": Optional[string] - if the "text" in "context" is a part of idiom, phrasal verb, slang, term extend it to the whole phrase.
+1. "extended_text": Optional[string] - if the "text" in "context" is a part of idiom, phrasal verb, slang, term etc extend it to the whole phrase.
 2. "text_translation": list[PossibleTranslation] - list of possible translations the "text" to "target_language" as close as possible to the "context". Only letters in the "target_language" are allowed.
 3. "phrases": List[Phrase] - a list of Phrases Model described below. Search for all types in the PhrasesTypeEnum. can be empty
 4. "normalized_text": Optional[string] - if the "text" is a single word, define its normal form. Else - null.
@@ -49,35 +49,38 @@ Phrase Model Fields:
 ```
 """
 
-user1 = """
-{
-  "selected_text": "decided",
-r  "source_language": "EN",
-  "target_language": "RU"
-}
-"""
-
-assistant1 = """
-{
-  "extended_text": "decided",
-  "text_translation": [
+user_questions = [
     {
-      "translation": "решил",
-      "pos": "verb"
-    }
-  ],
-  "phrases": [],
-  "pos": "verb",
-  "normalized_text": "to decide",
-  "normalized_text_translation": [
+        "source_language": "EN",
+        "target_language": "RU",
+        "text": "decided",
+        "context": "i decided to break a law and it was a piece of cake",
+        "small_context": "i decided to",
+    },
     {
-      "translation": "решить",
-      "pos": "verb"
-    }
-  ]
-}
+        "source_language": "EN",
+        "target_language": "RU",
+        "text": "decided",
+        "context": "After a very hard working day, John decided to quit his job, but the day after, his boss changed his work schedule, he was promoted, so he changed his mind.",
+        "small_context": "John decided to",
+    },
+]
 
-Если перевод исходного текста равен одной из фраз, в финальном результате вернуть только фразу.
-??? подумать над сохранением одного слова
-
-"""
+assistant_answers = [
+    {
+        "extended_text": "decided",
+        "text_translation": [{"translation": "решил", "pos": "verb"}],
+        "phrases": [],
+        "pos": "verb",
+        "normalized_text": "to decide",
+        "normalized_text_translation": [{"translation": "решить", "pos": "verb"}],
+    },
+    {
+        "extended_text": "decided",
+        "text_translation": [{"translation": "решил", "pos": "verb"}],
+        "phrases": [],
+        "pos": "verb",
+        "normalized_text": "to decide",
+        "normalized_text_translation": [{"translation": "решить", "pos": "verb"}],
+    },
+]

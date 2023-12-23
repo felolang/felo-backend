@@ -1,7 +1,8 @@
 import datetime
 import json
+from ast import List
 from enum import Enum
-from typing import Optional, Protocol
+from typing import Iterable, Optional, Protocol
 
 from loguru import logger
 from openai.types.chat import ChatCompletion
@@ -14,10 +15,10 @@ from felo.db.models.lookup import (
     PhrasesTypeEnum,
     TranslateEngineEnum,
 )
-from felo.endpoints.translator.prompt import assistant1, prompt, user1
+from felo.endpoints.translator.prompt import assistant_answers, prompt, user_questions
 from felo.schemas.cards import Card, CardTypesEnum, Explanation, NormalizedVersion
 from felo.schemas.lookup import LangModelResponseSchema
-from felo.schemas.translations import TranslationRequest
+from felo.schemas.translations import TranslationRequest, TranslationRequestToLM
 from felo.utils.api_clients import openai_async_client
 
 
@@ -35,12 +36,23 @@ class OpenaiApiAdapter:
         self.engine = TranslateEngineEnum.GPT_3_5_TURBO_1106
 
     async def translate(self, translator_request: TranslationRequest) -> dict:
+        examples: list[tuple] = [
+            (
+                {"role": "user", "content": json.dumps(question, ensure_ascii=False)},
+                {
+                    "role": "assistant",
+                    "content": json.dumps(answer, ensure_ascii=False),
+                },
+            )
+            for question, answer in zip(user_questions, assistant_answers)
+        ]
+        examples = [item for example in examples for item in example]
+        logger.debug(f"examples: {examples}")
         response: ChatCompletion = await self.client.chat.completions.create(
             model="gpt-3.5-turbo-1106",
             messages=[
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": user1},
-                {"role": "assistant", "content": assistant1},
+                *examples,
                 {
                     "role": "user",
                     "content": translator_request.model_dump_json(
@@ -146,7 +158,7 @@ class LanguageModelTranslation:
         return cards
 
     async def translate(
-        self, translator_request: TranslationRequest, lookup: Lookup
+        self, translator_request: TranslationRequestToLM, lookup: Lookup
     ) -> list[Card]:
         logger.debug(f"lookup: {lookup.lookup_answers}")
 
@@ -201,8 +213,9 @@ async def language_model_translation(
     language_model: LanguageModelEnum,
 ) -> list[Card]:
     api_adapter = API_ADAPTERS[language_model]
+    lm_request = TranslationRequestToLM.from_translation_request(translator_request)
     translator = LanguageModelTranslation(session, api_adapter)
-    return await translator.translate(translator_request, lookup)
+    return await translator.translate(lm_request, lookup)
 
 
 # async def gpt_translte_stream(

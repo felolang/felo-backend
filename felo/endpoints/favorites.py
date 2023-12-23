@@ -3,9 +3,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from felo.db.connection.session import get_session
-from felo.db.logic.lookup import (
-    get_lookup_by_id,
-)
+from felo.db.logic.lookup import get_lookup_by_id
 from felo.db.models.lookup import Lookup
 from felo.schemas.lookup import FastTranslationResponseSchema, LangModelResponseSchema
 from felo.schemas.translations import TranslationRequest
