@@ -4,6 +4,7 @@ from ast import List
 from enum import Enum
 from typing import Iterable, Optional, Protocol
 
+import inflect
 from loguru import logger
 from openai.types.chat import ChatCompletion
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,9 +22,24 @@ from felo.schemas.lookup import LangModelResponseSchema
 from felo.schemas.translations import TranslationRequest, TranslationRequestToLM
 from felo.utils.api_clients import openai_async_client
 
+p = inflect.engine()
+
+
+def substr_occurances(whole_str, sub_str, sub_str_start_pos):
+    count = 0
+    index = 0
+
+    while index != -1:
+        index = whole_str.find(sub_str, index)
+        if index == sub_str_start_pos:
+            return count + 1
+        if index != -1:
+            count += 1
+            index += 1
+
 
 class LanguageModelApiAadapter(Protocol):
-    async def translate(self, translator_request: TranslationRequest) -> dict:
+    async def translate(self, translator_request: TranslationRequestToLM) -> dict:
         ...
 
     def get_engine(self) -> str:
@@ -35,7 +51,8 @@ class OpenaiApiAdapter:
         self.client = openai_async_client
         self.engine = TranslateEngineEnum.GPT_3_5_TURBO_1106
 
-    async def translate(self, translator_request: TranslationRequest) -> dict:
+    async def translate(self, translator_request: TranslationRequestToLM) -> dict:
+        logger.debug(f"translator_request: {translator_request}")
         examples: list[tuple] = [
             (
                 {"role": "user", "content": json.dumps(question, ensure_ascii=False)},
@@ -47,18 +64,34 @@ class OpenaiApiAdapter:
             for question, answer in zip(user_questions, assistant_answers)
         ]
         examples = [item for example in examples for item in example]
-        logger.debug(f"examples: {examples}")
+        builded_prompt = prompt.format(
+            source_language=translator_request.source_language.value,
+            target_language=translator_request.target_language.value,
+            text=translator_request.text,
+            context=translator_request.context,
+            occurance=p.ordinal(
+                substr_occurances(
+                    translator_request.context,
+                    translator_request.text,
+                    translator_request.start_position,
+                )
+            ),
+        )
+        logger.debug(f"builded_prompt: {builded_prompt}")
         response: ChatCompletion = await self.client.chat.completions.create(
             model="gpt-3.5-turbo-1106",
             messages=[
-                {"role": "system", "content": prompt},
-                *examples,
                 {
                     "role": "user",
-                    "content": translator_request.model_dump_json(
-                        exclude={"id"}, by_alias=True
-                    ),
+                    "content": builded_prompt,
                 },
+                # *examples,
+                # {
+                #     "role": "user",
+                #     "content": translator_request.model_dump_json(
+                #         exclude={"id"}, by_alias=True
+                #     ),
+                # },
             ],
             seed=100,
             response_format={"type": "json_object"},
@@ -160,7 +193,7 @@ class LanguageModelTranslation:
     async def translate(
         self, translator_request: TranslationRequestToLM, lookup: Lookup
     ) -> list[Card]:
-        logger.debug(f"lookup: {lookup.lookup_answers}")
+        # logger.debug(f"lookup: {lookup.lookup_answers}")
 
         start = datetime.datetime.now()
         logger.debug(f"Time 1: {datetime.datetime.now() - start}")
@@ -181,12 +214,12 @@ class LanguageModelTranslation:
             engine=self.api_adapter.get_engine(),
             extended_text=response["extended_text"],
         )
-        lookup.lookup_answers.append(lookup_answer)
-        self.session.add(lookup)
+        # lookup.lookup_answers.append(lookup_answer)
+        # self.session.add(lookup)
         # phrases = [PhrasesSchema(**phrase._mapping) for phrase in lookup_answer.phrases]
-        phrases = lookup_answer.phrases
+        # phrases = lookup_answer.phrases
         # logger.debug(f"phrases {phrases}")
-        await self.session.commit()
+        # await self.session.commit()
 
         cards = self._lang_model_answer_to_cards(lookup.text, lookup_answer)
         cards = self._filter_cards(cards)

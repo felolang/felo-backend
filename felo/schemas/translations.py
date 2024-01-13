@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field, constr
 
 from felo.config.utils import CONFIG
 from felo.schemas.languages.iso639 import Language
+import inflect
+
+p = inflect.engine()
 
 
 class TranslationRequest(BaseModel):
@@ -43,6 +46,7 @@ class TranslationRequestToLM(BaseModel):
     text: str = Field(
         alias="input_text", max_length=CONFIG.LANGUAGE_MODEL_TEXT_MAX_LENGTH
     )
+    start_position: int
     context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
     small_context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
     source_language: Language
@@ -56,7 +60,7 @@ class TranslationRequestToLM(BaseModel):
         cls, text: str, context: str, text_start_position: int
     ) -> str:
         res_list = []
-        context_window = 1
+        context_window = 2
         left_part = context[:text_start_position].strip()
         right_part = context[text_start_position + len(text) :].strip()
 
@@ -85,13 +89,14 @@ class TranslationRequestToLM(BaseModel):
             id=translation_request.id,
             text=translation_request.text,
             context=translation_request.context,
-            source_language=translation_request.source_language,
-            target_language=translation_request.target_language,
+            source_language=translation_request.source_language.value,
+            target_language=translation_request.target_language.value,
             small_context=cls.retrieve_small_context(
                 translation_request.text,
                 translation_request.context,
                 translation_request.text_start_position,
             ),
+            start_position=translation_request.text_start_position,
         )
         logger.debug(f"request_to_lm: {request_to_lm.small_context}")
         return request_to_lm

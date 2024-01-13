@@ -28,6 +28,7 @@ python-iso639 = "^2023.6.15"
 pydantic = {extras = ["email"], version = "^2.5.1"}
 cloud-sql-python-connector = {extras = ["asyncpg"], version = "^1.4.3"}
 python-tds = "^1.13.0"
+inflect = "^7.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
