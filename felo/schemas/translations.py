@@ -1,12 +1,12 @@
 import uuid
 from typing import List, Optional
 
+import inflect
 from loguru import logger
 from pydantic import BaseModel, Field, constr
 
 from felo.config.utils import CONFIG
 from felo.schemas.languages.iso639 import Language
-import inflect
 
 p = inflect.engine()
 
@@ -39,6 +39,13 @@ def rfind_nth(haystack: str, needle: str, n: int) -> int:
         start = haystack.find(needle, start + len(needle))
         n -= 1
     return start
+
+
+class PhraseExtractionRequestToLM(BaseModel):
+    id: uuid.UUID = Field(alias="lookup_id")
+    context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
+    source_language: Language
+    target_language: Language
 
 
 class TranslationRequestToLM(BaseModel):

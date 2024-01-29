@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 from ast import List
@@ -16,10 +17,24 @@ from felo.db.models.lookup import (
     PhrasesTypeEnum,
     TranslateEngineEnum,
 )
-from felo.endpoints.translator.prompt import assistant_answers, prompt, user_questions
-from felo.schemas.cards import Card, CardTypesEnum, Explanation, NormalizedVersion
+from felo.endpoints.translator.prompt import (
+    extract_phrases_prompt,
+    prompt,
+    prompt_examples,
+)
+from felo.schemas.cards import (
+    Card,
+    CardTypesEnum,
+    Explanation,
+    NormalizedVersion,
+    PossibleTranslation,
+)
 from felo.schemas.lookup import LangModelResponseSchema
-from felo.schemas.translations import TranslationRequest, TranslationRequestToLM
+from felo.schemas.translations import (
+    PhraseExtractionRequestToLM,
+    TranslationRequest,
+    TranslationRequestToLM,
+)
 from felo.utils.api_clients import openai_async_client
 
 p = inflect.engine()
@@ -42,8 +57,17 @@ class LanguageModelApiAadapter(Protocol):
     async def translate(self, translator_request: TranslationRequestToLM) -> dict:
         ...
 
+    async def extract_phrases(
+        self, translator_request: PhraseExtractionRequestToLM
+    ) -> dict:
+        ...
+
     def get_engine(self) -> str:
         ...
+
+
+def flatten(xss):
+    return [x for xs in xss for x in xs]
 
 
 class OpenaiApiAdapter:
@@ -51,51 +75,114 @@ class OpenaiApiAdapter:
         self.client = openai_async_client
         self.engine = TranslateEngineEnum.GPT_3_5_TURBO_1106
 
+    async def extract_phrases(
+        self, translator_request: PhraseExtractionRequestToLM
+    ) -> dict:
+        logger.debug(f"translator_request: {translator_request}")
+        # examples: list[tuple] = [
+        #     (
+        #         {
+        #             "role": "user",
+        #             "content": prompt.format(
+        #                 text=question.text,
+        #                 context=question.context,
+        #                 source_language=question.source_language,
+        #                 target_language=question.target_language,
+        #                 order=p.ordinal(1),
+        #             ),
+        #         },
+        #         {
+        #             "role": "assistant",
+        #             "content": answer.model_dump_json(),
+        #         },
+        #     )
+        #     for question, answer in prompt_examples
+        # ]
+        messages = [
+            {
+                "role": "user",
+                "content": extract_phrases_prompt.format(
+                    context=translator_request.context,
+                    source_language=translator_request.source_language.value,
+                    target_language=translator_request.target_language.value,
+                ),
+            },
+        ]
+        logger.debug(f"messages: {messages}")
+
+        response: ChatCompletion = await self.client.chat.completions.create(
+            model="gpt-3.5-turbo-1106",
+            messages=messages,
+            seed=100,
+            response_format={"type": "json_object"},
+            temperature=0,
+        )
+        response_dict = response.model_dump()
+        response_content = json.loads(response_dict["choices"][0]["message"]["content"])
+        return response_content["phrases"]
+
     async def translate(self, translator_request: TranslationRequestToLM) -> dict:
         logger.debug(f"translator_request: {translator_request}")
         examples: list[tuple] = [
             (
-                {"role": "user", "content": json.dumps(question, ensure_ascii=False)},
-                {
-                    "role": "assistant",
-                    "content": json.dumps(answer, ensure_ascii=False),
-                },
-            )
-            for question, answer in zip(user_questions, assistant_answers)
-        ]
-        examples = [item for example in examples for item in example]
-        builded_prompt = prompt.format(
-            source_language=translator_request.source_language.value,
-            target_language=translator_request.target_language.value,
-            text=translator_request.text,
-            context=translator_request.context,
-            occurance=p.ordinal(
-                substr_occurances(
-                    translator_request.context,
-                    translator_request.text,
-                    translator_request.start_position,
-                )
-            ),
-        )
-        logger.debug(f"builded_prompt: {builded_prompt}")
-        response: ChatCompletion = await self.client.chat.completions.create(
-            model="gpt-3.5-turbo-1106",
-            messages=[
                 {
                     "role": "user",
-                    "content": builded_prompt,
+                    "content": prompt.format(
+                        text=question.text,
+                        context=question.context,
+                        source_language=question.source_language,
+                        target_language=question.target_language,
+                        order=p.ordinal(1),
+                    ),
                 },
-                # *examples,
-                # {
-                #     "role": "user",
-                #     "content": translator_request.model_dump_json(
-                #         exclude={"id"}, by_alias=True
-                #     ),
-                # },
-            ],
+                {
+                    "role": "assistant",
+                    "content": answer.model_dump_json(),
+                },
+            )
+            for question, answer in prompt_examples
+        ]
+        # examples = [*e for e in examples]
+        # builded_prompt = prompt.format(
+        #     source_language=translator_request.source_language.value,
+        #     target_language=translator_request.target_language.value,
+        #     text=translator_request.text,
+        #     context=translator_request.context,
+        #     occurance=p.ordinal(
+        #         substr_occurances(
+        #             translator_request.context,
+        #             translator_request.text,
+        #             translator_request.start_position,
+        #         )
+        #     ),
+        # )
+        messages = [
+            *flatten(examples),
+            {
+                "role": "user",
+                "content": prompt.format(
+                    text=translator_request.text,
+                    context=translator_request.context,
+                    source_language=translator_request.source_language.value,
+                    target_language=translator_request.target_language.value,
+                    order=p.ordinal(
+                        substr_occurances(
+                            translator_request.context,
+                            translator_request.text,
+                            translator_request.start_position,
+                        )
+                    ),
+                ),
+            },
+        ]
+        logger.debug(f"messages: {messages}")
+
+        response: ChatCompletion = await self.client.chat.completions.create(
+            model="gpt-3.5-turbo-1106",
+            messages=messages,
             seed=100,
             response_format={"type": "json_object"},
-            temperature=0.1,
+            temperature=0,
         )
         response_dict = response.model_dump()
         response_content = json.loads(response_dict["choices"][0]["message"]["content"])
@@ -195,25 +282,25 @@ class LanguageModelTranslation:
     ) -> list[Card]:
         # logger.debug(f"lookup: {lookup.lookup_answers}")
 
-        start = datetime.datetime.now()
-        logger.debug(f"Time 1: {datetime.datetime.now() - start}")
-        await self.load_prompt()
-        logger.debug(f"Time 2: {datetime.datetime.now() - start}")
+        # start = datetime.datetime.now()
+        # logger.debug(f"Time 1: {datetime.datetime.now() - start}")
+        # await self.load_prompt()
+        # logger.debug(f"Time 2: {datetime.datetime.now() - start}")
 
-        logger.debug(f"Time 3: {datetime.datetime.now() - start}")
-        response = await self.api_adapter.translate(translator_request)
-        logger.debug(f"GPT response: {response}")
-        logger.debug(f"GPT response: {response['phrases']}")
-        logger.debug(f"Time 4: {datetime.datetime.now() - start}")
-        lookup_answer = LookupAnswer(
-            text_translation=response["text_translation"],
-            normalized_text=response["normalized_text"],
-            normalized_text_translation=response["normalized_text_translation"],
-            # phrases=response["phrases"],
-            phrases=[LookupPhrases(**phrase) for phrase in response["phrases"]],
-            engine=self.api_adapter.get_engine(),
-            extended_text=response["extended_text"],
-        )
+        # logger.debug(f"Time 3: {datetime.datetime.now() - start}")
+        # response = await self.api_adapter.translate(translator_request)
+        # logger.debug(f"GPT response: {response}")
+        # logger.debug(f"GPT response: {response['phrases']}")
+        # logger.debug(f"Time 4: {datetime.datetime.now() - start}")
+        # lookup_answer = LookupAnswer(
+        #     text_translation=response["text_translation"],
+        #     normalized_text=response["normalized_text"],
+        #     normalized_text_translation=response["normalized_text_translation"],
+        #     # phrases=response["phrases"],
+        #     phrases=[LookupPhrases(**phrase) for phrase in response["phrases"]],
+        #     engine=self.api_adapter.get_engine(),
+        #     extended_text=response["extended_text"],
+        # )
         # lookup.lookup_answers.append(lookup_answer)
         # self.session.add(lookup)
         # phrases = [PhrasesSchema(**phrase._mapping) for phrase in lookup_answer.phrases]
@@ -221,9 +308,54 @@ class LanguageModelTranslation:
         # logger.debug(f"phrases {phrases}")
         # await self.session.commit()
 
-        cards = self._lang_model_answer_to_cards(lookup.text, lookup_answer)
-        cards = self._filter_cards(cards)
-        return cards
+        # cards = self._lang_model_answer_to_cards(lookup.text, lookup_answer)
+        # cards = self._filter_cards(cards)
+        translate_coroutine = self.api_adapter.translate(translator_request)
+        extract_coroutine = self.api_adapter.extract_phrases(
+            PhraseExtractionRequestToLM(
+                lookup_id=translator_request.id,
+                context=translator_request.context,
+                source_language=translator_request.source_language,
+                target_language=translator_request.target_language,
+            )
+        )
+        [translate_response, extract_response] = await asyncio.gather(
+            translate_coroutine, extract_coroutine
+        )
+        logger.debug(f"translate_response: {translate_response}")
+        logger.debug(f"extract_response: {extract_response}")
+        return [
+            Card(
+                text=translate_response["source"],
+                card_type=CardTypesEnum.SOURCE,
+                text_translation=[
+                    PossibleTranslation(
+                        pos=None,
+                        translation=translation,
+                    )
+                    for translation in translate_response["translations"]
+                ],
+                # explanation=Explanation(
+                #     explanation_translation=response["idiom_explanation"]
+                # ),
+                # grammar=response["grammar"],
+            ),
+            *[
+                Card(
+                    text=r["phrase_text"],
+                    card_type=r["phrase_type"],
+                    text_translation=[
+                        PossibleTranslation(
+                            pos=None,
+                            translation=r["translation"],
+                        )
+                    ],
+                    explanation=Explanation(explanation_translation=r["explanation"]),
+                )
+                for r in extract_response
+            ],
+        ]
+        # return cards
 
 
 class LanguageModelEnum(str, Enum):

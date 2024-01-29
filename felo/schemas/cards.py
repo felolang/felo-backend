@@ -18,7 +18,7 @@ class NormalizedVersion(BaseModel):
 
 
 class Explanation(BaseModel):
-    explanation: str
+    explanation: Optional[str] = None
     explanation_translation: str
 
 
@@ -40,3 +40,4 @@ class Card(BaseModel):
         NormalizedVersion
     ] = None  # если возможна нормализованная версия
     explanation: Optional[Explanation] = None  # если требуются объяснения к text
+    grammar: Optional[str] = None
