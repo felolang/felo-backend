@@ -1,12 +1,17 @@
 import asyncio
 import datetime
 import json
+import re
+import string
 from ast import List
 from enum import Enum
 from typing import Iterable, Optional, Protocol
 
 import inflect
+import nltk
 from loguru import logger
+from nltk import word_tokenize
+from nltk.stem import PorterStemmer
 from openai.types.chat import ChatCompletion
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +24,7 @@ from felo.db.models.lookup import (
 )
 from felo.endpoints.translator.prompt import (
     extract_phrases_prompt,
+    extract_phrases_prompt_examples,
     prompt,
     prompt_examples,
 )
@@ -37,10 +43,15 @@ from felo.schemas.translations import (
 )
 from felo.utils.api_clients import openai_async_client
 
+nltk.download("punkt")
+stemmer = PorterStemmer()
+
+
 p = inflect.engine()
 
 
 def substr_occurances(whole_str, sub_str, sub_str_start_pos):
+    logger.debug(f"csubstr_occurancesou, {whole_str}, {sub_str}, {sub_str_start_pos}")
     count = 0
     index = 0
 
@@ -79,39 +90,40 @@ class OpenaiApiAdapter:
         self, translator_request: PhraseExtractionRequestToLM
     ) -> dict:
         logger.debug(f"translator_request: {translator_request}")
-        # examples: list[tuple] = [
-        #     (
-        #         {
-        #             "role": "user",
-        #             "content": prompt.format(
-        #                 text=question.text,
-        #                 context=question.context,
-        #                 source_language=question.source_language,
-        #                 target_language=question.target_language,
-        #                 order=p.ordinal(1),
-        #             ),
-        #         },
-        #         {
-        #             "role": "assistant",
-        #             "content": answer.model_dump_json(),
-        #         },
-        #     )
-        #     for question, answer in prompt_examples
-        # ]
+        examples: list[tuple] = [
+            (
+                {
+                    "role": "user",
+                    "content": extract_phrases_prompt.format(
+                        text=question.text,
+                        context=question.context,
+                        source_language=question.source_language,
+                        target_language=question.target_language,
+                    ),
+                },
+                {
+                    "role": "assistant",
+                    "content": answer.model_dump_json(),
+                },
+            )
+            for question, answer in extract_phrases_prompt_examples
+        ]
         messages = [
+            *flatten(examples),
             {
                 "role": "user",
                 "content": extract_phrases_prompt.format(
+                    text=translator_request.text,
                     context=translator_request.context,
                     source_language=translator_request.source_language.value,
                     target_language=translator_request.target_language.value,
                 ),
             },
         ]
-        logger.debug(f"messages: {messages}")
+        # logger.debug(f"messages: {messages}")
 
         response: ChatCompletion = await self.client.chat.completions.create(
-            model="gpt-3.5-turbo-1106",
+            model="gpt-3.5-turbo-0125",
             messages=messages,
             seed=100,
             response_format={"type": "json_object"},
@@ -156,6 +168,12 @@ class OpenaiApiAdapter:
         #         )
         #     ),
         # )
+        ordinal = substr_occurances(
+            translator_request.context,
+            translator_request.text,
+            translator_request.start_position,
+        )
+        logger.debug(f"ordinal {ordinal}")
         messages = [
             *flatten(examples),
             {
@@ -165,20 +183,14 @@ class OpenaiApiAdapter:
                     context=translator_request.context,
                     source_language=translator_request.source_language.value,
                     target_language=translator_request.target_language.value,
-                    order=p.ordinal(
-                        substr_occurances(
-                            translator_request.context,
-                            translator_request.text,
-                            translator_request.start_position,
-                        )
-                    ),
+                    # order=p.ordinal(ordinal),
                 ),
             },
         ]
         logger.debug(f"messages: {messages}")
 
         response: ChatCompletion = await self.client.chat.completions.create(
-            model="gpt-3.5-turbo-1106",
+            model="gpt-3.5-turbo-0125",
             messages=messages,
             seed=100,
             response_format={"type": "json_object"},
@@ -317,6 +329,7 @@ class LanguageModelTranslation:
                 context=translator_request.context,
                 source_language=translator_request.source_language,
                 target_language=translator_request.target_language,
+                text=translator_request.text,
             )
         )
         [translate_response, extract_response] = await asyncio.gather(
@@ -324,38 +337,81 @@ class LanguageModelTranslation:
         )
         logger.debug(f"translate_response: {translate_response}")
         logger.debug(f"extract_response: {extract_response}")
-        return [
+
+        source_card = Card(
+            text=translator_request.text,
+            card_type=CardTypesEnum.SOURCE,
+            text_translation=[
+                PossibleTranslation(
+                    pos=None,
+                    translation=translation,
+                )
+                for translation in set(translate_response["translations"])
+            ],
+            # explanation=Explanation(
+            #     explanation_translation=response["idiom_explanation"]
+            # ),
+            # grammar=response["grammar"],
+        )
+
+        extracted_phrases = [
             Card(
-                text=translate_response["source"],
-                card_type=CardTypesEnum.SOURCE,
+                text=r["phrase_text"],
+                card_type=r["phrase_type"],
                 text_translation=[
                     PossibleTranslation(
                         pos=None,
                         translation=translation,
                     )
-                    for translation in translate_response["translations"]
+                    for translation in set(r["translations"])
                 ],
-                # explanation=Explanation(
-                #     explanation_translation=response["idiom_explanation"]
-                # ),
-                # grammar=response["grammar"],
-            ),
-            *[
-                Card(
-                    text=r["phrase_text"],
-                    card_type=r["phrase_type"],
-                    text_translation=[
-                        PossibleTranslation(
-                            pos=None,
-                            translation=r["translation"],
-                        )
-                    ],
-                    explanation=Explanation(explanation_translation=r["explanation"]),
-                )
-                for r in extract_response
-            ],
+                explanation=Explanation(explanation_translation=r["explanation"]),
+            )
+            for r in extract_response
+            if "phrase_type" in r and r["phrase_type"] in CardTypesEnum._member_names_
         ]
-        # return cards
+        filtered_phrases: List[Card] = []
+
+        for phrase in extracted_phrases:
+            # if phrase.card_type.value not in CardTypesEnum._member_names_:
+            #     continue
+            if phrase.card_type in [
+                CardTypesEnum.NOTHING,
+                # CardTypesEnum.ORDINARY_PHRASE,
+            ]:
+                continue
+            if (
+                phrase.card_type == CardTypesEnum.PHRASAL_VERB
+                and len(phrase.text.split()) < 2
+            ):
+                continue
+            if (
+                phrase.text not in source_card.text
+                and source_card.text not in phrase.text
+            ):
+                continue
+            filtered_phrases.append(phrase)
+
+        # filter 1
+        if any(
+            True if source_card.text in phrase.text else False
+            for phrase in filtered_phrases
+        ):
+            cards = filtered_phrases
+        else:
+            cards = [source_card, *filtered_phrases]
+
+        # filter 2
+        NEED_EXPLANATION = [
+            CardTypesEnum.IDIOM,
+            CardTypesEnum.SLANG,
+            CardTypesEnum.TERM,
+        ]
+        for card in cards:
+            if card.card_type not in NEED_EXPLANATION:
+                card.explanation = None
+
+        return cards
 
 
 class LanguageModelEnum(str, Enum):
@@ -370,6 +426,71 @@ API_ADAPTERS: dict[LanguageModelEnum, LanguageModelApiAadapter] = {
     LanguageModelEnum.OPENAI: OpenaiApiAdapter(),
 }
 
+# def preprocess_translor_request(
+#     translator_request: TranslationRequest,
+# ) -> TranslationRequest:
+
+
+class PreprocessingPipeline:
+    def __init__(self) -> None:
+        self.pipeline = [self.shorter_context]
+
+    def process(
+        self, translator_request: TranslationRequestToLM
+    ) -> TranslationRequestToLM:
+        for item in self.pipeline:
+            translator_request = item(translator_request)
+        return translator_request
+
+    def rm_characters(
+        self, translator_request: TranslationRequestToLM
+    ) -> TranslationRequestToLM:
+        characters_to_rm = "\n|\t"
+        translator_request.context = re.sub(
+            characters_to_rm, "", translator_request.context
+        )
+        translator_request.text = re.sub(characters_to_rm, "", translator_request.text)
+        return translator_request
+
+    def shorter_context(
+        self, translator_request: TranslationRequestToLM
+    ) -> TranslationRequestToLM:
+        if len(translator_request.text.split(" ")) != 1:
+            return translator_request
+
+        stem_text = stemmer.stem(translator_request.text, to_lowercase=False)
+
+        # n_token = 0
+        # for i, c in enumerate(translator_request.context):
+        #     if i == translator_request.start_position:
+        #         break
+        #     if c == " ":
+        #         n_token += 1
+
+        occurances = [
+            m.start() for m in re.finditer(stem_text, translator_request.context)
+        ]
+        try:
+            assert translator_request.start_position in occurances
+        except AssertionError:
+            logger.warning(f"stem: {stem_text}. context: {translator_request.context}")
+            return translator_request
+        if len(occurances) == 1:
+            return translator_request
+
+        left_border = 0
+        right_border = len(translator_request.context)
+        for occurance in occurances:
+            if occurance < translator_request.start_position:
+                left_border = translator_request.context.find(" ", occurance)
+            elif occurance > translator_request.start_position:
+                right_border = occurance
+                break
+        translator_request.context = translator_request.context[
+            left_border:right_border
+        ]
+        return translator_request
+
 
 async def language_model_translation(
     session: AsyncSession,
@@ -379,6 +500,10 @@ async def language_model_translation(
 ) -> list[Card]:
     api_adapter = API_ADAPTERS[language_model]
     lm_request = TranslationRequestToLM.from_translation_request(translator_request)
+    pipeline = PreprocessingPipeline()
+
+    lm_request = pipeline.process(lm_request)
+    logger.debug(f"lm_request after pipeline {lm_request}")
     translator = LanguageModelTranslation(session, api_adapter)
     return await translator.translate(lm_request, lookup)
 

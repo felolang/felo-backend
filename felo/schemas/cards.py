@@ -29,6 +29,8 @@ class CardTypesEnum(str, Enum):
     ORDINARY_WORD = "ORDINARY_WORD"
     TERM = "TERM"
     SOURCE = "SOURCE"
+    NOTHING = "NOTHING"
+    # ORDINARY_PHRASE = "ORDINARY_PHRASE"
 
 
 class Card(BaseModel):
@@ -40,4 +42,3 @@ class Card(BaseModel):
         NormalizedVersion
     ] = None  # если возможна нормализованная версия
     explanation: Optional[Explanation] = None  # если требуются объяснения к text
-    grammar: Optional[str] = None

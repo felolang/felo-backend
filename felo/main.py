@@ -63,7 +63,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY") or None
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ["*", "localhost", "localhost:8000", "http://localhost:8000", "plugin"]
 
 app.add_middleware(
     CORSMiddleware,

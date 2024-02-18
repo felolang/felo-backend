@@ -57,7 +57,7 @@ class PhrasesTypeEnum(Enum):
     IDIOM = "IDIOM"
     SLANG = "SLANG"
     PHRASAL_VERB = "PHRASAL_VERB"
-    ORDINARY_WORD = "ORDINARY_WORD"
+    # ORDINARY_WORD = "ORDINARY_WORD"
     TERM = "TERM"
 
 

@@ -1,5 +1,5 @@
+import string
 import uuid
-from typing import List, Optional
 
 import inflect
 from loguru import logger
@@ -43,6 +43,7 @@ def rfind_nth(haystack: str, needle: str, n: int) -> int:
 
 class PhraseExtractionRequestToLM(BaseModel):
     id: uuid.UUID = Field(alias="lookup_id")
+    text: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
     context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
     source_language: Language
     target_language: Language
@@ -55,7 +56,7 @@ class TranslationRequestToLM(BaseModel):
     )
     start_position: int
     context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
-    small_context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
+    # small_context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
     source_language: Language
     target_language: Language
 
@@ -92,20 +93,56 @@ class TranslationRequestToLM(BaseModel):
     def from_translation_request(
         cls, translation_request: TranslationRequest
     ) -> "TranslationRequestToLM":
+        translation_request.context = translation_request.context.replace("\xa0", " ")
+        logger.debug(f"translation_request before {translation_request.context}")
+        real_start_position = translation_request.text_start_position
+        if translation_request.context[real_start_position] not in (
+            " ",
+            *string.punctuation,
+        ):
+            while real_start_position != 0:
+                if translation_request.context[real_start_position] not in (
+                    " ",
+                    *string.punctuation,
+                ):
+                    real_start_position -= 1
+                else:
+                    real_start_position += 1
+                    break
+
+        real_end_position = translation_request.text_start_position + (
+            len(translation_request.text) - 1
+        )
+        if translation_request.context[real_end_position] not in (
+            " ",
+            *string.punctuation,
+        ):
+            while real_end_position != len(translation_request.context):
+                if translation_request.context[real_end_position] not in (
+                    " ",
+                    *string.punctuation,
+                ):
+                    real_end_position += 1
+                else:
+                    real_end_position -= 1
+                    break
+
         request_to_lm = TranslationRequestToLM(
             id=translation_request.id,
-            text=translation_request.text,
+            text=translation_request.context[
+                real_start_position : real_end_position + 1
+            ],
             context=translation_request.context,
             source_language=translation_request.source_language.value,
             target_language=translation_request.target_language.value,
-            small_context=cls.retrieve_small_context(
-                translation_request.text,
-                translation_request.context,
-                translation_request.text_start_position,
-            ),
-            start_position=translation_request.text_start_position,
+            # small_context=cls.retrieve_small_context(
+            #     translation_request.text,
+            #     translation_request.context,
+            #     translation_request.text_start_position,
+            # ),
+            start_position=real_start_position,
         )
-        logger.debug(f"request_to_lm: {request_to_lm.small_context}")
+        logger.debug(f"real text: '{request_to_lm.text}'")
         return request_to_lm
 
 
