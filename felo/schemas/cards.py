@@ -14,7 +14,7 @@ class PossibleTranslation(BaseModel):
 
 class NormalizedVersion(BaseModel):
     normalized_text: str
-    normilized_text_translation: list[PossibleTranslation]
+    normilized_text_translation: list[str]
 
 
 class Explanation(BaseModel):
@@ -38,7 +38,7 @@ class Card(BaseModel):
     text: str
     card_type: CardTypesEnum
     text_translation: list[PossibleTranslation]
-    normilized: Optional[
-        NormalizedVersion
-    ] = None  # если возможна нормализованная версия
+    normilized: Optional[NormalizedVersion] = (
+        None  # если возможна нормализованная версия
+    )
     explanation: Optional[Explanation] = None  # если требуются объяснения к text

@@ -7,9 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from felo.config.utils import CONFIG
 from felo.db.models.lookup import Lookup
 from felo.schemas.cards import Card, CardTypesEnum
-from felo.schemas.lookup import LookupSchema
-from felo.schemas.translations import FastTranslationRequest
-from felo.services.language_model_tranlation import FastTranslatorEnum
+from felo.schemas.translations import FastTranslationRequest, FastTranslatorEnum
 
 
 # Initialize Translation client

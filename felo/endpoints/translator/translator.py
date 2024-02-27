@@ -2,29 +2,24 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Body, Depends
-from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from felo.db.connection.session import get_session
-from felo.db.logic.lookup import get_or_create_lookup
 from felo.db.models.lookup import Lookup
 from felo.schemas.cards import Card
-from felo.schemas.lookup import (
-    FastTranslationResponseSchema,
-    LangModelResponseSchema,
-    LookupSchema,
-)
-from felo.schemas.translations import FastTranslationRequest, TranslationRequest
-from felo.schemas.user import UserSchema
-from felo.services.language_model_tranlation import (
+from felo.schemas.lookup import LookupSchema
+from felo.schemas.translations import (
+    FastTranslationRequest,
     FastTranslatorEnum,
+    TranslationRequest,
+)
+from felo.services.language_model_tranlation import (
     LanguageModelEnum,
     language_model_translation,
 )
 from felo.services.simple_translation import google_translate
 
 # from felo.services.google_translator import google_translsate
-from felo.utils.jwt_utils import get_current_user
 
 api_router = APIRouter(
     prefix="/translations",
@@ -70,14 +65,3 @@ async def translate_with_fast_translator(
     lookup = None
     res = await google_translate(session, translator_request, lookup, translator)
     return res
-
-
-# @api_router.get("/deep/stream")
-# def deep_translate_stream():
-#     def event():
-#         while True:
-#             # HERE lies the question: wait for state to be update
-#             for message in state.messages:
-#                 yield "data: {}\n\n".format(json.dumps(message))
-
-#     return StreamingResponse(event_stream(), media_type="text/event-stream")

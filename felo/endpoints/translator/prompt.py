@@ -10,6 +10,8 @@ please answer in json list format with this fields  (like this {{phrases: [{{"ph
 2. phrase_type: type of extracted phrase (IDIOM, PHRASAL_VERB, SLANG, NOTHING) other types are forbidden!.  
 3. translations: lits of possible translations in context of this phrase from {source_language} to {target_language} language.
 4. explanation: explanation of this phrase in {target_language}. please explane in like native speaker in {target_language} language
+5. normalized_phrase_text: normal form of phrase_text in {source_language} language if possible, else None
+6. normalized_translations: list of possible translations of normalized_phrase_text to {target_language} language
 
 If you can't find anything, just return an empty list.
 """
@@ -27,6 +29,8 @@ class ExtractedPhrase(BaseModel):
     phrase_type: str
     translations: List[str]
     explanation: str
+    normalized_phrase_text: str
+    normalized_translations: list[str]
 
 
 class ExtractPhrasesResponse(BaseModel):
@@ -47,6 +51,8 @@ extract_phrases_prompt_examples = [
                     phrase_text="top off",
                     phrase_type="PHRASAL_VERB",
                     translations=["долить", "подлить"],
+                    normalized_phrase_text="to top off",
+                    normalized_translations=["долить", "подлить"],
                     explanation='"Top off" - это фразовый глагол, который означает добавить или долить что-то до верха.',
                 )
             ]
@@ -65,6 +71,8 @@ extract_phrases_prompt_examples = [
                     phrase_text="top off",
                     phrase_type="PHRASAL_VERB",
                     translations=["долить", "подлить"],
+                    normalized_phrase_text="to top off",
+                    normalized_translations=["долить", "подлить"],
                     explanation='"Top off" - это фразовый глагол, который означает добавить или долить что-то до верха.',
                 )
             ]
@@ -83,6 +91,8 @@ extract_phrases_prompt_examples = [
                     phrase_text="fill in",
                     phrase_type="PHRASAL_VERB",
                     translations=["заполнить"],
+                    normalized_phrase_text="to fill in",
+                    normalized_translations=["заполнить"],
                     explanation='"Fill in" в данном контексте означает дополнить информацию в указанной форме, документе или месте, вводя необходимые данные.',
                 )
             ]
@@ -105,6 +115,12 @@ extract_phrases_prompt_examples = [
                         "в одинаковом положении",
                         "братья по несчастью",
                     ],
+                    normalized_phrase_text="To be in the same boat",
+                    normalized_translations=[
+                        "в одной лодке",
+                        "в одинаковом положении",
+                        "братья по несчастью",
+                    ],
                     explanation='Фраза "To be in the same boat" в переводе на русский язык означает "быть в одной лодке" и используется в смысле нахождения в похожей ситуации или столкновения с одними и теми же трудностями вместе с кем-то.',
                 )
             ]
@@ -123,6 +139,8 @@ extract_phrases_prompt_examples = [
                     phrase_text="changed his mind",
                     phrase_type="IDIOM",
                     translations=["передумал", "изменил свое мнение"],
+                    normalized_phrase_text="to change your mind",
+                    normalized_translations=["передумать", "изменить мнение"],
                     explanation='"changed his mind" - Этот идиома означает, что человек изменил своё мнение или решение.',
                 )
             ]
@@ -137,6 +155,8 @@ extract_phrases_prompt_examples = [
 prompt = """
 answer in json format with this fields:
 1. translations: list of possible translations of text "{text}" in context "{context}" from {source_language} language to {target_language} language. It is very important to keep meaning of context. Keep original part of speech. translate in the original tense and declension. translate with original gender (he/she/it). Please translate full "{text}"
+2. normalized_text: normal form of "{text}" in {source_language} language if possible, else None
+3. normalized_text_translations: list of possible translations of normalized_text to {target_language} language
 
 """
 
@@ -152,6 +172,8 @@ class UserQuestion(BaseModel):
 
 class ModelAnswer(BaseModel):
     translations: List[str]
+    normalized_text: str
+    normalized_text_translations: list[str]
     # grammar: str
     # idiom_explanation: str
 
@@ -166,6 +188,8 @@ prompt_examples = [
         ),
         ModelAnswer(
             translations=["Я"],
+            normalized_text="I",
+            normalized_text_translations=["Я"],
             # idiom_explanation="",
             # grammar="",
         ),
@@ -179,6 +203,8 @@ prompt_examples = [
         ),
         ModelAnswer(
             translations=["долить", "подлить"],
+            normalized_text="to top off",
+            normalized_text_translations=["долить", "подлить"],
             # idiom_explanation="",
             # grammar='"Top off" - это фразовый глагол, который означает добавить или долить что-то до верха. В данном контексте, "May I top off your beverage?" переводится как "Могу ли я долить ваш напиток?"',
         ),
@@ -192,6 +218,8 @@ prompt_examples = [
         ),
         ModelAnswer(
             translations=["заполнить"],
+            normalized_text="to fill in",
+            normalized_text_translations=["заполнить"],
             # idiom_explanation="",
             # grammar='"Fill in" в данном контексте означает дополнить информацию в указанной форме, документе или месте, вводя необходимые данные.',
         ),
