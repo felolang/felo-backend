@@ -12,18 +12,18 @@ from felo.schemas.cards import (
     PossibleTranslation,
 )
 from felo.schemas.translations import (
-    LanguageModelEnum,
     PhraseExtractionRequestToLM,
+    LanguageModelEnum,
     TranslationRequest,
 )
 from felo.services.LanguageModelsAdapters.language_model_protocol import (
     LanguageModelApiAadapter,
 )
 from felo.services.LanguageModelsAdapters.openai import OpenaiApiAdapter
+from felo.services.LanguageModelsAdapters.openai_adhoc import OpenaiAdhocApiAdapter
 from felo.services.postprocessing import PostprocessingPipeline
-from felo.services.preprocessing import PreprocessingPipeline
+from felo.services.preprocessing import preprocess
 
-preprocessing = PreprocessingPipeline()
 postprocessing = PostprocessingPipeline()
 
 
@@ -33,15 +33,7 @@ async def make_requests_to_adapter(
     translator_request: TranslationRequest,
 ) -> list[Card]:
     translate_coroutine = adapter.translate(translator_request)
-    extract_coroutine = adapter.extract_phrases(
-        PhraseExtractionRequestToLM(
-            lookup_id=translator_request.id,
-            context=translator_request.context,
-            source_language=translator_request.source_language,
-            target_language=translator_request.target_language,
-            text=translator_request.text,
-        )
-    )
+    extract_coroutine = adapter.extract_phrases(translator_request)
     [translate_response, extract_response] = await asyncio.gather(
         translate_coroutine, extract_coroutine
     )
@@ -99,6 +91,7 @@ async def make_requests_to_adapter(
 
 API_ADAPTERS: dict[LanguageModelEnum, LanguageModelApiAadapter] = {
     LanguageModelEnum.OPENAI: OpenaiApiAdapter(),
+    LanguageModelEnum.ADHOC_OPENAI: OpenaiAdhocApiAdapter(),
 }
 
 # def preprocess_translor_request(
@@ -115,7 +108,7 @@ async def language_model_translation(
     api_adapter = API_ADAPTERS[language_model]
     # lm_request = TranslationRequest.from_translation_request(translator_request)
 
-    translator_request = preprocessing.process(translator_request)
+    translator_request = preprocess(language_model, translator_request)
     logger.debug(f"lm_request after pipeline {translator_request}")
     source_translation_card, extracted_phrases = await make_requests_to_adapter(
         session, api_adapter, translator_request

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -6,7 +6,7 @@ extract_phrases_prompt = """
 
 
 please answer in json list format with this fields  (like this {{phrases: [{{"phrase_text": "...", "phrase_type": "...", "translation": "...", "explanation": "...}}]}}):
-1. phrase_text: find idioms, phrasal verbs or slang in this text "{context}". mark the phrase as NOTHING if it doesn't fit other types. But don't try to find such NOTHING phrases on purpose
+1. phrase_text: find idioms, phrasal verbs or slang in this text "{text}". mark the phrase as NOTHING if it doesn't fit other types. But don't try to find such NOTHING phrases on purpose
 2. phrase_type: type of extracted phrase (IDIOM, PHRASAL_VERB, SLANG, NOTHING) other types are forbidden!.  
 3. translations: lits of possible translations in context of this phrase from {source_language} to {target_language} language.
 4. explanation: explanation of this phrase in {target_language}. please explane in like native speaker in {target_language} language
@@ -224,33 +224,92 @@ prompt_examples = [
             # grammar='"Fill in" в данном контексте означает дополнить информацию в указанной форме, документе или месте, вводя необходимые данные.',
         ),
     ),
-    # (
-    #     UserQuestion(
-    #         text="be",
-    #         context="To be in the same boat",
-    #         source_language="EN",
-    #         target_language="RU",
-    #     ),
-    #     ModelAnswer(
-    #         translations=[
-    #             "в одной лодке",
-    #             "в одинаковом положении",
-    #             "братья по несчастью",
-    #         ],
-    #         # idiom_explanation='Фраза "To be in the same boat" в переводе на русский язык означает "быть в одной лодке" и используется в смысле нахождения в похожей ситуации или столкновения с одними и теми же трудностями вместе с кем-то.',
-    #         # grammar="",
-    #     ),
-    # ),
-    # (
-    #     UserQuestion(
-    #         text="pick",
-    #         context="I'll pick you up from the station at 8 p.m.",
-    #         source_language="EN",
-    #         target_language="RU",
-    #     ),
-    #     ModelAnswer(
-    #         source="pick up",
-    #         transtations=["заберу"],
-    #     ),
-    # ),
+]
+# ---------------- adhoc prompt --------------
+
+adhoc_prompt = """
+answer in json format with this fields:
+1. translations: translate "{text}" from {source_language} language to {target_language} language. return list of all possible translation in all part of speach.
+2. normalized_text: If the original text "{text}" is already in normal form, then none. If not, put it in a normal form if possible.
+3. normalized_text_translations: list of possible translations of normalized_text to {target_language} language
+
+"""
+
+
+class AdhocRequest(BaseModel):
+    text: str
+    source_language: str
+    target_language: str
+
+
+class AdhocAnswer(BaseModel):
+    translations: List[str]
+    normalized_text: Optional[str]
+    normalized_text_translations: list[str]
+    # grammar: str
+    # idiom_explanation: str
+
+
+adhoc_prompt_examples = [
+    (
+        AdhocRequest(
+            text="bat",
+            source_language="EN",
+            target_language="RU",
+        ),
+        AdhocAnswer(
+            translations=[
+                "летучая мышь",
+                "бита",
+                "карьер",
+                "крот",
+                "ракетка",
+                "кожан",
+                "отбивать",
+            ],
+            normalized_text=None,
+            normalized_text_translations=[],
+        ),
+    ),
+    (
+        AdhocRequest(
+            text="checked",
+            source_language="EN",
+            target_language="RU",
+        ),
+        AdhocAnswer(
+            translations=[
+                "проверенный",
+                "клетчатый",
+                "проверил",
+            ],
+            normalized_text="check",
+            normalized_text_translations=[
+                "проверить",
+                "проверять",
+                "ознакомиться",
+                "убедиться",
+                "узнать",
+                "контролировать",
+                "проверка",
+                "чек",
+                "чековый",
+                "контрольный",
+            ],
+        ),
+    ),
+    (
+        AdhocRequest(
+            text="Я тебя проверил",
+            source_language="RU",
+            target_language="EN",
+        ),
+        AdhocAnswer(
+            translations=[
+                "I checked you out",
+            ],
+            normalized_text=None,
+            normalized_text_translations=[],
+        ),
+    ),
 ]

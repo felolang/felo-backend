@@ -9,6 +9,7 @@ from felo.db.models.lookup import Lookup
 from felo.schemas.cards import Card
 from felo.schemas.lookup import LookupSchema
 from felo.schemas.translations import (
+    AdhocRequest,
     FastTranslationRequest,
     FastTranslatorEnum,
     TranslationRequest,
@@ -27,7 +28,7 @@ api_router = APIRouter(
 )
 
 
-def mock_lookup(translator_request: TranslationRequest = Body(...)):
+def mock_lookup(translator_request: AdhocRequest = Body(...)):
     return LookupSchema(
         id=uuid.uuid4(),
         user_id=uuid.uuid4(),
@@ -37,12 +38,11 @@ def mock_lookup(translator_request: TranslationRequest = Body(...)):
         source_language="EN",
         target_language="RU",
         text=translator_request.text,
-        context=translator_request.context,
     )
 
 
 @api_router.post("/lm/{language_model_type}", response_model=list[Card])
-async def translate_with_language_model(
+async def context_translation(
     language_model_type: LanguageModelEnum,
     session: AsyncSession = Depends(get_session),
     translator_request: TranslationRequest = Body(...),
@@ -51,6 +51,18 @@ async def translate_with_language_model(
 ):
     res = await language_model_translation(
         session, translator_request, lookup, language_model_type
+    )
+    return res
+
+
+@api_router.post("/adhoc", response_model=list[Card])
+async def adhoc_translation(
+    session: AsyncSession = Depends(get_session),
+    translator_request: AdhocRequest = Body(...),
+    lookup: Lookup = Depends(mock_lookup),
+):
+    res = await language_model_translation(
+        session, translator_request, lookup, LanguageModelEnum.ADHOC_OPENAI
     )
     return res
 

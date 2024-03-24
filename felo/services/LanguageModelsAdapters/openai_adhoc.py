@@ -5,20 +5,20 @@ from openai.types.chat import ChatCompletion
 
 from felo.db.models.lookup import TranslateEngineEnum
 from felo.endpoints.translator.prompt import (
+    adhoc_prompt,
+    adhoc_prompt_examples,
     extract_phrases_prompt,
     extract_phrases_prompt_examples,
-    prompt,
-    prompt_examples,
 )
-from felo.schemas.translations import PhraseExtractionRequestToLM, TranslationRequest
+from felo.schemas.translations import TranslationRequest
 from felo.utils.api_clients import openai_async_client
 from felo.utils.structures import flatten
 
 
-class OpenaiApiAdapter:
+class OpenaiAdhocApiAdapter:
     def __init__(self):
         self.client = openai_async_client
-        self.engine = TranslateEngineEnum.GPT_3_5_TURBO_1106
+        self.engine = TranslateEngineEnum.GPT_3_5_TURBO_0125
 
     async def extract_phrases(self, translator_request: TranslationRequest) -> dict:
         logger.debug(f"translator_request: {translator_request}")
@@ -69,9 +69,8 @@ class OpenaiApiAdapter:
             (
                 {
                     "role": "user",
-                    "content": prompt.format(
+                    "content": adhoc_prompt.format(
                         text=question.text,
-                        context=question.context,
                         source_language=question.source_language,
                         target_language=question.target_language,
                     ),
@@ -81,15 +80,14 @@ class OpenaiApiAdapter:
                     "content": answer.model_dump_json(),
                 },
             )
-            for question, answer in prompt_examples
+            for question, answer in adhoc_prompt_examples
         ]
         messages = [
             *flatten(examples),
             {
                 "role": "user",
-                "content": prompt.format(
+                "content": adhoc_prompt.format(
                     text=translator_request.text,
-                    context=translator_request.context,
                     source_language=translator_request.source_language.value,
                     target_language=translator_request.target_language.value,
                 ),

@@ -14,10 +14,23 @@ p = inflect.engine()
 
 class LanguageModelEnum(str, Enum):
     OPENAI = "openai"
+    ADHOC_OPENAI = "adhoc_openai"
 
 
 class FastTranslatorEnum(str, Enum):
     GOOGLE = "google"
+
+
+class AdhocRequest(BaseModel):
+    id: uuid.UUID = Field(alias="lookup_id")
+    text: str = Field(
+        alias="input_text", max_length=CONFIG.LANGUAGE_MODEL_TEXT_MAX_LENGTH
+    )
+    source_language: Language
+    target_language: Language
+
+    class Config:
+        populate_by_name = True
 
 
 class TranslationRequest(BaseModel):
@@ -53,7 +66,6 @@ def rfind_nth(haystack: str, needle: str, n: int) -> int:
 class PhraseExtractionRequestToLM(BaseModel):
     id: uuid.UUID = Field(alias="lookup_id")
     text: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
-    context: str = Field(max_length=CONFIG.LANGUAGE_MODEL_CONTEXT_MAX_LENGTH)
     source_language: Language
     target_language: Language
 

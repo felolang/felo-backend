@@ -31,6 +31,7 @@ class Lookup(BaseTable):
 class TranslateEngineEnum(Enum):
     GOOGLE = "google"
     GPT_3_5_TURBO_1106 = "gpt_3_5_turbo_1106"
+    GPT_3_5_TURBO_0125 = "gpt-3.5-turbo-0125"
 
 
 # class TranslateEngine(BaseTable):

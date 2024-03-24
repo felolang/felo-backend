@@ -30,6 +30,7 @@ class CardTypesEnum(str, Enum):
     TERM = "TERM"
     SOURCE = "SOURCE"
     NOTHING = "NOTHING"
+    EXPRESSION = "EXPRESSION"
     # ORDINARY_PHRASE = "ORDINARY_PHRASE"
 
 

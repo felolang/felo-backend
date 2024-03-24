@@ -1,6 +1,12 @@
 from typing import List, Optional
 
+import spacy
+from loguru import logger
+
 from felo.schemas.cards import Card, CardTypesEnum
+
+# Load the 'en_core_web_sm' model
+nlp = spacy.load("en_core_web_sm")
 
 NEED_EXPLANATION = [
     CardTypesEnum.IDIOM,
@@ -15,6 +21,7 @@ class PostprocessingPipeline:
             self._filter_extracted_phrases,
             self._filter_source_card,
             self._clear_explanation,
+            self._remove_unnecessary_normalization,
         ]
 
     def _filter_extracted_phrases(
@@ -30,9 +37,26 @@ class PostprocessingPipeline:
                 continue
             if (
                 phrase.card_type == CardTypesEnum.PHRASAL_VERB
-                and len(phrase.text.split()) < 2
             ):  # TODO: сделать проверку на фразовый глагол
-                continue
+                doc = nlp(phrase.text)
+                # if len(pos_tags) != 2:
+                # continue
+                pos_list = [token.pos_ for token in doc]
+                logger.debug(f"pos_tags {pos_list}")
+                try:
+                    assert "VERB" in pos_list
+                    phrasal_verb_second_pos = None
+                    if "ADP" in pos_list:
+                        phrasal_verb_second_pos = "ADP"
+                    if "PRT" in pos_list:
+                        phrasal_verb_second_pos = "PRT"
+                    assert phrasal_verb_second_pos is not None
+                    assert pos_list.index("VERB") < pos_list.index(
+                        phrasal_verb_second_pos
+                    )
+                except AssertionError:
+                    phrase.card_type = CardTypesEnum.EXPRESSION
+
             if (
                 phrase.text not in source_translation.text
                 and source_translation.text not in phrase.text
@@ -59,6 +83,21 @@ class PostprocessingPipeline:
         for card in extracted_phrases:
             if card.card_type not in NEED_EXPLANATION:
                 card.explanation = None
+        return source_translation, extracted_phrases
+
+    def _remove_unnecessary_normalization(
+        self, source_translation: Optional[Card], extracted_phrases: list[Card]
+    ) -> tuple[Optional[Card], list[Card]]:
+        if (
+            source_translation
+            and source_translation.normilized
+            and source_translation.normilized.normalized_text == source_translation.text
+        ):
+            source_translation.normilized = None
+
+        for card in extracted_phrases:
+            if card.normilized and card.normilized.normalized_text == card.text:
+                card.normilized = None
         return source_translation, extracted_phrases
 
     def process(
